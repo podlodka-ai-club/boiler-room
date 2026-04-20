@@ -54,3 +54,26 @@ def test_claude_adapter_build_prompt_delegates_to_base():
     prompt = adapter.build_prompt(TASK, OUTPUT_PATH)
     assert "Add login endpoint" in prompt
     assert OUTPUT_PATH in prompt
+
+
+from boiler_room.agents.copilot import CopilotAdapter
+
+
+def test_copilot_adapter_command_starts_with_gh():
+    adapter = CopilotAdapter()
+    cmd = adapter.build_command("do the task", OUTPUT_PATH)
+    assert cmd[0] == "gh"
+    assert "copilot" in cmd
+
+
+def test_copilot_adapter_command_includes_prompt():
+    adapter = CopilotAdapter()
+    cmd = adapter.build_command("do the task", OUTPUT_PATH)
+    assert "do the task" in cmd
+
+
+def test_copilot_adapter_build_prompt_delegates_to_base():
+    adapter = CopilotAdapter()
+    prompt = adapter.build_prompt(TASK, OUTPUT_PATH)
+    assert "Add login endpoint" in prompt
+    assert OUTPUT_PATH in prompt

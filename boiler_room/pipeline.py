@@ -4,7 +4,7 @@ import os
 import subprocess
 
 from boiler_room.agents.base import AgentAdapter
-from boiler_room.git import push_branch
+from boiler_room.git import prepare_branch, push_branch
 from boiler_room.github import GitHubClient
 from boiler_room.models import AgentOutput, RunResult, Task
 
@@ -30,7 +30,6 @@ def run_one_task(client: GitHubClient, adapter: AgentAdapter, repo_path: str) ->
 
 
 def prepare_env(client: GitHubClient, task: Task, repo_path: str) -> str:
-    from boiler_room.git import prepare_branch
     branch = prepare_branch(repo_path, task.issue_number)
     client.move_to_in_progress(task.id)
     client.ensure_label("agent-run")

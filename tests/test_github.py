@@ -140,9 +140,9 @@ def test_ensure_label_calls_gh_label_create(mock_gh_run):
     assert "agent-run" in args
 
 
-@patch("boiler_room.github._gh_json")
-def test_create_pr_returns_url(mock_gh_json):
-    mock_gh_json.return_value = {"url": "https://github.com/dznavak/repo/pull/10"}
+@patch("boiler_room.github.subprocess.run")
+def test_create_pr_returns_url(mock_run):
+    mock_run.return_value = MagicMock(returncode=0, stdout="https://github.com/dznavak/repo/pull/10\n")
     client = make_client()
     url = client.create_pr("feature/42", "feat: add login", "## What\nAdded login")
     assert url == "https://github.com/dznavak/repo/pull/10"

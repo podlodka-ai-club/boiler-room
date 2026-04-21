@@ -193,16 +193,18 @@ class GitHubClient:
         ])
 
     def create_pr(self, branch: str, title: str, body: str) -> str:
-        data = _gh_json([
-            "pr", "create",
-            "--repo", self._repo,
-            "--head", branch,
-            "--base", "main",
-            "--title", title,
-            "--body", body,
-            "--json", "url",
-        ])
-        return data["url"]
+        result = subprocess.run(
+            ["gh", "pr", "create",
+             "--repo", self._repo,
+             "--head", branch,
+             "--base", "main",
+             "--title", title,
+             "--body", body],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            raise GitHubError(result.stderr.strip())
+        return result.stdout.strip()
 
 
 def _parse_project_url(url: str) -> tuple[str, int]:

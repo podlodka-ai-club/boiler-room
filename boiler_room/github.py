@@ -186,7 +186,7 @@ class GitHubClient:
             "-F", f"projectId={meta.project_id}",
             "-F", f"itemId={item_id}",
             "-F", f"fieldId={meta.status_field_id}",
-            "-F", f"optionId={option_id}",
+            "-f", f"optionId={option_id}",
         ])
 
     def ensure_label(self, label: str) -> None:

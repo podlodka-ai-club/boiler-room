@@ -206,9 +206,21 @@ class GitHubClient:
 
 
 def _parse_project_url(url: str) -> tuple[str, int]:
-    # "https://github.com/users/dznavak/projects/2" -> ("dznavak", 2)
+    """Parse a GitHub user project URL.
+
+    Expected format: https://github.com/users/<login>/projects/<number>
+    """
     parts = url.rstrip("/").split("/")
-    return parts[-3], int(parts[-1])
+    # Expected: ['https:', '', 'github.com', 'users', '<login>', 'projects', '<n>']
+    if len(parts) < 7 or parts[-2] != "projects" or parts[-4] != "users":
+        raise GitHubError(
+            f"Unsupported project URL: {url!r}. "
+            "Expected format: https://github.com/users/<login>/projects/<number>"
+        )
+    try:
+        return parts[-3], int(parts[-1])
+    except (ValueError, IndexError):
+        raise GitHubError(f"Could not parse project number from URL: {url!r}")
 
 
 def _get_item_status(item: dict) -> str | None:

@@ -123,3 +123,18 @@ def test_finalize_failure_pushes_branch_and_labels_failed(mock_prepare, mock_run
     mock_push.assert_called_once_with("/repo", "feature/42")
     client.add_label.assert_any_call(TASK.issue_number, "failed")
     client.move_to_todo.assert_not_called()  # task left In Progress — code is done
+
+
+@patch("boiler_room.pipeline.run_agent")
+@patch("boiler_room.pipeline.prepare_env")
+def test_move_to_todo_called_even_if_label_fails(mock_prepare, mock_run_agent):
+    client = make_client()
+    client.add_label.side_effect = Exception("label error")
+    mock_prepare.return_value = "feature/42"
+    mock_run_agent.return_value = RunResult(
+        task=TASK, exit_code=1, output=None,
+        branch="feature/42", output_dir=".agent-runs/42",
+    )
+    with patch("boiler_room.pipeline.push_branch"):
+        run_one_task(client, make_adapter(), "/repo")
+    client.move_to_todo.assert_called_once_with(TASK.id)

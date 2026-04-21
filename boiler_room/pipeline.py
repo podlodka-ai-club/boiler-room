@@ -45,11 +45,16 @@ def run_agent(adapter: AgentAdapter, task: Task, branch: str, repo_path: str) ->
     prompt = adapter.build_prompt(task, output_path)
     command = adapter.build_command(prompt, output_path)
 
-    proc = subprocess.run(command, cwd=repo_path)
+    try:
+        proc = subprocess.run(command, cwd=repo_path, timeout=3600)
+        exit_code = proc.returncode
+    except subprocess.TimeoutExpired:
+        logger.error("Agent timed out after 3600s for task %s", task.issue_number)
+        exit_code = 1
 
     return RunResult(
         task=task,
-        exit_code=proc.returncode,
+        exit_code=exit_code,
         output=_read_output(output_path),
         branch=branch,
         output_dir=output_dir,
@@ -98,7 +103,10 @@ def _handle_failure(
         push_branch(repo_path, result.branch)
     except Exception as e:
         logger.warning("Could not push failure branch %s: %s", result.branch, e)
-    client.ensure_label("failed")
-    client.add_label(result.task.issue_number, "failed")
+    try:
+        client.ensure_label("failed")
+        client.add_label(result.task.issue_number, "failed")
+    except Exception as e:
+        logger.error("Could not apply 'failed' label on issue %s: %s", result.task.issue_number, e)
     if reset_to_todo:
         client.move_to_todo(result.task.id)

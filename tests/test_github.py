@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from boiler_room.github import GitHubClient, GitHubError, _ProjectMeta
+from boiler_room.github import GitHubClient, GitHubError, _ProjectMeta, _parse_project_url
 
 PROJECT_URL = "https://github.com/users/dznavak/projects/2"
 REPO = "dznavak/my-repo"
@@ -146,3 +146,25 @@ def test_create_pr_returns_url(mock_gh_json):
     client = make_client()
     url = client.create_pr("feature/42", "feat: add login", "## What\nAdded login")
     assert url == "https://github.com/dznavak/repo/pull/10"
+
+
+def test_parse_project_url_valid():
+    login, number = _parse_project_url("https://github.com/users/dznavak/projects/2")
+    assert login == "dznavak"
+    assert number == 2
+
+
+def test_parse_project_url_trailing_slash():
+    login, number = _parse_project_url("https://github.com/users/dznavak/projects/2/")
+    assert login == "dznavak"
+    assert number == 2
+
+
+def test_parse_project_url_org_raises():
+    with pytest.raises(GitHubError, match="Unsupported project URL"):
+        _parse_project_url("https://github.com/orgs/myorg/projects/5")
+
+
+def test_parse_project_url_malformed_raises():
+    with pytest.raises(GitHubError):
+        _parse_project_url("https://github.com/projects/1")

@@ -18,7 +18,7 @@ def prepare_branch(repo_path: str, issue_number: int) -> str:
     _run("git", "reset", "--hard", "HEAD", cwd=repo_path)
     _run("git", "clean", "-fd", cwd=repo_path)
     _run("git", "pull", cwd=repo_path)
-    _run("git", "checkout", "-b", branch, cwd=repo_path)
+    _run("git", "checkout", "-B", branch, cwd=repo_path)
     return branch
 
 

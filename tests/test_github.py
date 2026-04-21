@@ -131,6 +131,29 @@ def test_move_to_in_progress_calls_mutation(mock_gh_run):
 
 
 @patch("boiler_room.github._gh_run")
+def test_move_to_done_calls_mutation_when_option_exists(mock_gh_run):
+    client = make_client()
+    client._meta = _ProjectMeta(
+        project_id="PVT_proj1",
+        status_field_id="FIELD_status",
+        todo_option_id="OPT_todo",
+        in_progress_option_id="OPT_inprogress",
+        done_option_id="OPT_done",
+    )
+    client.move_to_done("PVTI_item1")
+    mock_gh_run.assert_called_once()
+    assert "updateProjectV2ItemFieldValue" in " ".join(mock_gh_run.call_args.args[0])
+
+
+@patch("boiler_room.github._gh_run")
+def test_move_to_done_skips_when_no_done_option(mock_gh_run):
+    client = make_client()
+    client._meta = _prebuild_meta()  # done_option_id=None
+    client.move_to_done("PVTI_item1")
+    mock_gh_run.assert_not_called()
+
+
+@patch("boiler_room.github._gh_run")
 def test_ensure_label_calls_gh_label_create(mock_gh_run):
     client = make_client()
     client.ensure_label("agent-run")

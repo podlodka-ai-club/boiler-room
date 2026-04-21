@@ -15,6 +15,7 @@ class _ProjectMeta:
     status_field_id: str
     todo_option_id: str
     in_progress_option_id: str
+    done_option_id: str | None = None
 
 
 def _gh_json(args: list[str]) -> dict:
@@ -142,6 +143,7 @@ class GitHubClient:
             status_field_id=status_field["id"],
             todo_option_id=options["Todo"],
             in_progress_option_id=options["In Progress"],
+            done_option_id=options.get("Done"),
         )
 
     def fetch_first_todo_task(self) -> Task | None:
@@ -170,6 +172,11 @@ class GitHubClient:
 
     def move_to_todo(self, item_id: str) -> None:
         self._update_status(item_id, self._get_meta().todo_option_id)
+
+    def move_to_done(self, item_id: str) -> None:
+        option_id = self._get_meta().done_option_id
+        if option_id is not None:
+            self._update_status(item_id, option_id)
 
     def _update_status(self, item_id: str, option_id: str) -> None:
         meta = self._get_meta()

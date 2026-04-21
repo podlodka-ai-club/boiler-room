@@ -91,6 +91,7 @@ def _finalize(client: GitHubClient, result: RunResult, repo_path: str) -> None:
     try:
         url = client.create_pr(result.branch, pr_title, pr_body)
         logger.info("PR created: %s", url)
+        client.move_to_done(result.task.id)
     except Exception as e:
         logger.error("create_pr failed: %s — pushing branch, leaving task In Progress", e)
         _handle_failure(client, result, repo_path, reset_to_todo=False)

@@ -39,6 +39,7 @@ def test_success_creates_pr(mock_prepare, mock_run_agent):
     result = run_one_task(client, make_adapter(), "/repo")
     assert result is True
     client.create_pr.assert_called_once()
+    client.move_to_done.assert_called_once_with(TASK.id)
 
 
 @patch("boiler_room.pipeline.run_agent")
@@ -123,6 +124,7 @@ def test_finalize_failure_pushes_branch_and_labels_failed(mock_prepare, mock_run
     mock_push.assert_called_once_with("/repo", "feature/42")
     client.add_label.assert_any_call(TASK.issue_number, "failed")
     client.move_to_todo.assert_not_called()  # task left In Progress — code is done
+    client.move_to_done.assert_not_called()
 
 
 @patch("boiler_room.pipeline.run_agent")

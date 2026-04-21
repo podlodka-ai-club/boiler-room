@@ -21,7 +21,7 @@ def test_prepare_branch_happy_path(mock_run):
     assert ["git", "reset", "--hard", "HEAD"] in issued
     assert ["git", "clean", "-fd"] in issued
     assert ["git", "pull"] in issued
-    assert ["git", "checkout", "-b", "feature/42"] in issued
+    assert ["git", "checkout", "-B", "feature/42"] in issued
 
 
 @patch("boiler_room.git.subprocess.run")

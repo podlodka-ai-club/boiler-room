@@ -12,13 +12,17 @@ Comments:
 {comments}
 
 ---
-When you have completed the task, write a JSON file to {output_path} with these fields:
-  pr_title (str): title for the pull request
-  pr_description (str): markdown body for the pull request
-  summary (str): brief human-readable summary of what was done
-  success (bool): true if the task was completed successfully
+Instructions:
+1. Implement the task in the current git branch.
+2. Run the test suite to verify everything passes.
+3. Stage and commit all changes: git add -A && git commit -m "<short description>"
+4. Write a JSON file to {output_path} with these fields:
+     pr_title (str): title for the pull request
+     pr_description (str): markdown body for the pull request
+     summary (str): brief human-readable summary of what was done
+     success (bool): true if the task was completed successfully
 
-Do not exit until the JSON file has been written to {output_path}.
+Do not exit until the git commit and the JSON file at {output_path} are both done.
 """
 
 

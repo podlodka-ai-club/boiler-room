@@ -93,15 +93,20 @@ def _finalize(client: GitHubClient, result: RunResult, repo_path: str) -> None:
         logger.info("PR created: %s", url)
         client.move_to_done(result.task.id)
     except Exception as e:
-        logger.error("create_pr failed: %s — pushing branch, leaving task In Progress", e)
-        _handle_failure(client, result, repo_path, reset_to_todo=False)
+        err = str(e)
+        if "already exists" in err:
+            logger.info("PR already open for branch %s — marking Done", result.branch)
+            client.move_to_done(result.task.id)
+        else:
+            logger.error("create_pr failed: %s — pushing branch, leaving task In Progress", e)
+            _handle_failure(client, result, repo_path, reset_to_todo=False)
 
 
 def _handle_failure(
     client: GitHubClient, result: RunResult, repo_path: str, *, reset_to_todo: bool
 ) -> None:
     try:
-        push_branch(repo_path, result.branch)
+        push_branch(repo_path, result.branch, force=True)
     except Exception as e:
         logger.warning("Could not push failure branch %s: %s", result.branch, e)
     try:

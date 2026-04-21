@@ -22,5 +22,8 @@ def prepare_branch(repo_path: str, issue_number: int) -> str:
     return branch
 
 
-def push_branch(repo_path: str, branch: str) -> None:
-    _run("git", "push", "origin", branch, cwd=repo_path)
+def push_branch(repo_path: str, branch: str, *, force: bool = False) -> None:
+    args = ["git", "push", "origin", branch]
+    if force:
+        args.append("--force-with-lease")
+    _run(*args, cwd=repo_path)

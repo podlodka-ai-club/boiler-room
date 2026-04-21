@@ -121,10 +121,25 @@ def test_finalize_failure_pushes_branch_and_labels_failed(mock_prepare, mock_run
     )
     with patch("boiler_room.pipeline.push_branch") as mock_push:
         run_one_task(client, make_adapter(), "/repo")
-    mock_push.assert_called_once_with("/repo", "feature/42")
+    mock_push.assert_called_once_with("/repo", "feature/42", force=True)
     client.add_label.assert_any_call(TASK.issue_number, "failed")
     client.move_to_todo.assert_not_called()  # task left In Progress — code is done
     client.move_to_done.assert_not_called()
+
+
+@patch("boiler_room.pipeline.run_agent")
+@patch("boiler_room.pipeline.prepare_env")
+def test_pr_already_exists_marks_done(mock_prepare, mock_run_agent):
+    client = make_client()
+    client.create_pr.side_effect = Exception("a pull request already exists for branch")
+    mock_prepare.return_value = "feature/42"
+    mock_run_agent.return_value = RunResult(
+        task=TASK, exit_code=0, output=None,
+        branch="feature/42", output_dir=".agent-runs/42",
+    )
+    run_one_task(client, make_adapter(), "/repo")
+    client.move_to_done.assert_called_once_with(TASK.id)
+    client.add_label.assert_not_called()
 
 
 @patch("boiler_room.pipeline.run_agent")

@@ -42,6 +42,16 @@ def test_push_branch_issues_correct_command(mock_run):
 
 
 @patch("boiler_room.git.subprocess.run")
+def test_push_branch_force_adds_flag(mock_run):
+    mock_run.return_value = _mock_proc(returncode=0)
+    push_branch("/repo", "feature/42", force=True)
+    mock_run.assert_called_once_with(
+        ["git", "push", "origin", "feature/42", "--force-with-lease"],
+        capture_output=True, text=True, cwd="/repo",
+    )
+
+
+@patch("boiler_room.git.subprocess.run")
 def test_push_branch_raises_on_error(mock_run):
     mock_run.return_value = _mock_proc(returncode=1, stderr="remote rejected")
     with pytest.raises(GitError, match="remote rejected"):

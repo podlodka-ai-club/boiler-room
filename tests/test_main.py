@@ -52,3 +52,19 @@ def test_main_stops_after_count(mock_client_cls, mock_run):
     ]):
         main()
     assert mock_run.call_count == 2
+
+
+@patch("boiler_room.main.run_one_task")
+@patch("boiler_room.main.GitHubClient")
+def test_main_passes_label_to_client(mock_client_cls, mock_run):
+    mock_run.return_value = False
+    with patch("sys.argv", [
+        "boiler-room",
+        "--agent", "claude",
+        "--project", "https://github.com/users/x/projects/1",
+        "--label", "e2e-test-abc",
+    ]):
+        main()
+    mock_client_cls.assert_called_once_with(
+        "https://github.com/users/x/projects/1", label="e2e-test-abc"
+    )

@@ -40,10 +40,14 @@ def main() -> None:
         "--count", type=int, default=None,
         help="Maximum number of tasks to process (default: unlimited)",
     )
+    parser.add_argument(
+        "--label", default=None,
+        help="Only process issues carrying this GitHub label",
+    )
     args = parser.parse_args()
 
     adapter = build_adapter(args.agent)
-    client = GitHubClient(args.project)
+    client = GitHubClient(args.project, label=args.label)
     repo_path = os.getcwd()
 
     processed = 0

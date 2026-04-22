@@ -309,6 +309,49 @@ class GitHubClient:
         nodes = node["fieldValues"]["nodes"]
         return _get_item_status({"fieldValues": {"nodes": nodes}})
 
+    def find_pr_for_branch(self, branch: str) -> int | None:
+        """Return the open PR number for the given head branch, or None."""
+        result = subprocess.run(
+            ["gh", "pr", "list",
+             "--repo", self._repo,
+             "--head", branch,
+             "--state", "open",
+             "--json", "number"],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            return None
+        data = json.loads(result.stdout)
+        return data[0]["number"] if data else None
+
+    def close_issue(self, issue_number: int) -> None:
+        _gh_run(["issue", "close", str(issue_number), "--repo", self._repo])
+
+    def close_pr(self, pr_number: int) -> None:
+        _gh_run(["pr", "close", str(pr_number), "--repo", self._repo])
+
+    def delete_branch(self, branch: str) -> None:
+        result = subprocess.run(
+            ["gh", "api", "-X", "DELETE",
+             f"repos/{self._repo}/git/refs/heads/{branch}"],
+            capture_output=True, text=True,
+        )
+        # "Reference does not exist" is acceptable — branch was never pushed
+        if result.returncode != 0 and "Reference does not exist" not in result.stderr:
+            raise GitHubError(result.stderr.strip())
+
+    def remove_from_project(self, item_id: str) -> None:
+        meta = self._get_meta()
+        _gh_run([
+            "api", "graphql",
+            "-f", f"query={_REMOVE_ITEM_MUTATION}",
+            "-F", f"projectId={meta.project_id}",
+            "-F", f"itemId={item_id}",
+        ])
+
+    def delete_label(self, label: str) -> None:
+        _gh_run(["label", "delete", label, "--repo", self._repo, "--yes"])
+
 
 def _parse_project_url(url: str) -> tuple[str, int]:
     """Parse a GitHub user project URL.

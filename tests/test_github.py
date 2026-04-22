@@ -63,9 +63,9 @@ def _prebuild_meta():
     )
 
 
-def make_client():
+def make_client(label=None):
     with patch("boiler_room.github.GitHubClient._detect_repo", return_value=REPO):
-        client = GitHubClient(PROJECT_URL)
+        client = GitHubClient(PROJECT_URL, label=label)
     return client
 
 
@@ -191,3 +191,72 @@ def test_parse_project_url_org_raises():
 def test_parse_project_url_malformed_raises():
     with pytest.raises(GitHubError):
         _parse_project_url("https://github.com/projects/1")
+
+
+@patch("boiler_room.github._gh_json")
+def test_fetch_returns_task_with_matching_label(mock_gh):
+    items_with_label = {
+        "data": {
+            "node": {
+                "items": {
+                    "nodes": [
+                        {
+                            "id": "PVTI_item1",
+                            "fieldValues": {
+                                "nodes": [
+                                    {"name": "Todo", "field": {"name": "Status"}}
+                                ]
+                            },
+                            "content": {
+                                "number": 42,
+                                "title": "Add login",
+                                "body": "As a user...",
+                                "url": "https://github.com/dznavak/my-repo/issues/42",
+                                "labels": {"nodes": [{"name": "my-label"}]},
+                                "comments": {"nodes": []},
+                            },
+                        }
+                    ]
+                }
+            }
+        }
+    }
+    mock_gh.side_effect = [META_RESPONSE, items_with_label]
+    client = make_client(label="my-label")
+    task = client.fetch_first_todo_task()
+    assert task is not None
+    assert task.issue_number == 42
+
+
+@patch("boiler_room.github._gh_json")
+def test_fetch_skips_task_without_matching_label(mock_gh):
+    items_wrong_label = {
+        "data": {
+            "node": {
+                "items": {
+                    "nodes": [
+                        {
+                            "id": "PVTI_item1",
+                            "fieldValues": {
+                                "nodes": [
+                                    {"name": "Todo", "field": {"name": "Status"}}
+                                ]
+                            },
+                            "content": {
+                                "number": 42,
+                                "title": "Add login",
+                                "body": "As a user...",
+                                "url": "https://github.com/dznavak/my-repo/issues/42",
+                                "labels": {"nodes": [{"name": "other-label"}]},
+                                "comments": {"nodes": []},
+                            },
+                        }
+                    ]
+                }
+            }
+        }
+    }
+    mock_gh.side_effect = [META_RESPONSE, items_wrong_label]
+    client = make_client(label="my-label")
+    task = client.fetch_first_todo_task()
+    assert task is None

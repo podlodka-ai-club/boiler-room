@@ -71,6 +71,7 @@ query($projectId: ID!) {
               title
               body
               url
+              labels(first: 10) { nodes { name } }
               comments(first: 20) { nodes { body } }
             }
           }
@@ -96,10 +97,11 @@ mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
 
 
 class GitHubClient:
-    def __init__(self, project_url: str):
+    def __init__(self, project_url: str, label: str | None = None):
         self._login, self._project_number = _parse_project_url(project_url)
         self._repo = self._detect_repo()
         self._meta: _ProjectMeta | None = None
+        self._label = label
 
     @staticmethod
     def _detect_repo() -> str:
@@ -155,16 +157,23 @@ class GitHubClient:
         ])
         items = data["data"]["node"]["items"]["nodes"]
         for item in items:
-            if _get_item_status(item) == "Todo" and item.get("content"):
-                content = item["content"]
-                return Task(
-                    id=item["id"],
-                    title=content["title"],
-                    description=content.get("body") or "",
-                    comments=[c["body"] for c in content["comments"]["nodes"]],
-                    issue_number=content["number"],
-                    issue_url=content["url"],
-                )
+            if _get_item_status(item) != "Todo":
+                continue
+            if not item.get("content"):
+                continue
+            content = item["content"]
+            if self._label is not None:
+                labels = [n["name"] for n in content.get("labels", {}).get("nodes", [])]
+                if self._label not in labels:
+                    continue
+            return Task(
+                id=item["id"],
+                title=content["title"],
+                description=content.get("body") or "",
+                comments=[c["body"] for c in content["comments"]["nodes"]],
+                issue_number=content["number"],
+                issue_url=content["url"],
+            )
         return None
 
     def move_to_in_progress(self, item_id: str) -> None:

@@ -303,7 +303,10 @@ class GitHubClient:
             "-f", f"query={_GET_ITEM_STATUS_QUERY}",
             "-F", f"itemId={item_id}",
         ])
-        nodes = data["data"]["node"]["fieldValues"]["nodes"]
+        node = data["data"]["node"]
+        if node is None:
+            return None
+        nodes = node["fieldValues"]["nodes"]
         return _get_item_status({"fieldValues": {"nodes": nodes}})
 
 

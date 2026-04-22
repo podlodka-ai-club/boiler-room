@@ -260,3 +260,12 @@ def test_fetch_skips_task_without_matching_label(mock_gh):
     client = make_client(label="my-label")
     task = client.fetch_first_todo_task()
     assert task is None
+
+
+@patch("boiler_room.github._gh_json")
+def test_fetch_skips_task_with_no_labels_key_when_label_filter_set(mock_gh):
+    # ITEMS_RESPONSE has no 'labels' key in content — should be skipped when label filter is active
+    mock_gh.side_effect = [META_RESPONSE, ITEMS_RESPONSE]
+    client = make_client(label="my-label")
+    task = client.fetch_first_todo_task()
+    assert task is None

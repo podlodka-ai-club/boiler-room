@@ -26,6 +26,9 @@ def main() -> None:
         description="Pick tasks from a GitHub Project and delegate them to a local AI coding agent."
     )
     parser.add_argument(
+        "--version", action="version", version="boiler-room 0.1.0",
+    )
+    parser.add_argument(
         "--agent", required=True, choices=["claude", "copilot"],
         help="Which AI agent to use",
     )

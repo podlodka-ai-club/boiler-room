@@ -5,6 +5,15 @@ from boiler_room.agents.claude import ClaudeAdapter
 from boiler_room.agents.copilot import CopilotAdapter
 
 
+def test_version_flag(capsys):
+    with pytest.raises(SystemExit) as exc_info:
+        with patch("sys.argv", ["boiler-room", "--version"]):
+            main()
+    assert exc_info.value.code == 0
+    captured = capsys.readouterr()
+    assert "boiler-room 0.1.0" in captured.out
+
+
 def test_build_adapter_claude():
     assert isinstance(build_adapter("claude"), ClaudeAdapter)
 

@@ -27,9 +27,10 @@ def make_adapter():
     return adapter
 
 
+@patch("boiler_room.pipeline.push_branch")
 @patch("boiler_room.pipeline.run_agent")
 @patch("boiler_room.pipeline.prepare_env")
-def test_success_creates_pr(mock_prepare, mock_run_agent):
+def test_success_creates_pr(mock_prepare, mock_run_agent, mock_push):
     client = make_client()
     mock_prepare.return_value = "feature/42"
     mock_run_agent.return_value = RunResult(
@@ -38,6 +39,7 @@ def test_success_creates_pr(mock_prepare, mock_run_agent):
     )
     result = run_one_task(client, make_adapter(), "/repo")
     assert result is True
+    mock_push.assert_called_once_with("/repo", "feature/42")
     client.create_pr.assert_called_once()
     client.move_to_done.assert_called_once_with(TASK.id)
 
@@ -75,9 +77,10 @@ def test_empty_queue_returns_false():
     assert result is False
 
 
+@patch("boiler_room.pipeline.push_branch")
 @patch("boiler_room.pipeline.run_agent")
 @patch("boiler_room.pipeline.prepare_env")
-def test_pr_title_falls_back_to_task_title(mock_prepare, mock_run_agent):
+def test_pr_title_falls_back_to_task_title(mock_prepare, mock_run_agent, mock_push):
     client = make_client()
     mock_prepare.return_value = "feature/42"
     mock_run_agent.return_value = RunResult(
@@ -89,9 +92,10 @@ def test_pr_title_falls_back_to_task_title(mock_prepare, mock_run_agent):
     assert title_used == f"feat: {TASK.title}"
 
 
+@patch("boiler_room.pipeline.push_branch")
 @patch("boiler_room.pipeline.run_agent")
 @patch("boiler_room.pipeline.prepare_env")
-def test_pr_uses_agent_output_when_present(mock_prepare, mock_run_agent):
+def test_pr_uses_agent_output_when_present(mock_prepare, mock_run_agent, mock_push):
     client = make_client()
     mock_prepare.return_value = "feature/42"
     mock_run_agent.return_value = RunResult(
@@ -121,15 +125,18 @@ def test_finalize_failure_pushes_branch_and_labels_failed(mock_prepare, mock_run
     )
     with patch("boiler_room.pipeline.push_branch") as mock_push:
         run_one_task(client, make_adapter(), "/repo")
-    mock_push.assert_called_once_with("/repo", "feature/42", force=True)
+    # First call: normal push before create_pr; second: force-push from _handle_failure
+    mock_push.assert_any_call("/repo", "feature/42")
+    mock_push.assert_any_call("/repo", "feature/42", force=True)
     client.add_label.assert_any_call(TASK.issue_number, "failed")
     client.move_to_todo.assert_not_called()  # task left In Progress — code is done
     client.move_to_done.assert_not_called()
 
 
+@patch("boiler_room.pipeline.push_branch")
 @patch("boiler_room.pipeline.run_agent")
 @patch("boiler_room.pipeline.prepare_env")
-def test_pr_already_exists_marks_done(mock_prepare, mock_run_agent):
+def test_pr_already_exists_marks_done(mock_prepare, mock_run_agent, mock_push):
     client = make_client()
     client.create_pr.side_effect = Exception("a pull request already exists for branch")
     mock_prepare.return_value = "feature/42"

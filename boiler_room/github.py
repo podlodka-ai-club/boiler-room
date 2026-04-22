@@ -321,7 +321,10 @@ class GitHubClient:
         )
         if result.returncode != 0:
             return None
-        data = json.loads(result.stdout)
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            return None
         return data[0]["number"] if data else None
 
     def close_issue(self, issue_number: int) -> None:

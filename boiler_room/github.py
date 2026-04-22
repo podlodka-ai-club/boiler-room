@@ -95,6 +95,45 @@ mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
 }
 """
 
+_ADD_ITEM_MUTATION = """
+mutation($projectId: ID!, $contentId: ID!) {
+  addProjectV2ItemByContentId(input: {
+    projectId: $projectId
+    contentId: $contentId
+  }) {
+    item { id }
+  }
+}
+"""
+
+_REMOVE_ITEM_MUTATION = """
+mutation($projectId: ID!, $itemId: ID!) {
+  deleteProjectV2Item(input: {
+    projectId: $projectId
+    itemId: $itemId
+  }) {
+    deletedItemId
+  }
+}
+"""
+
+_GET_ITEM_STATUS_QUERY = """
+query($itemId: ID!) {
+  node(id: $itemId) {
+    ... on ProjectV2Item {
+      fieldValues(first: 10) {
+        nodes {
+          ... on ProjectV2ItemFieldSingleSelectValue {
+            name
+            field { ... on ProjectV2SingleSelectField { name } }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
 
 class GitHubClient:
     def __init__(self, project_url: str, label: str | None = None):
@@ -221,6 +260,51 @@ class GitHubClient:
         if result.returncode != 0:
             raise GitHubError(result.stderr.strip())
         return result.stdout.strip()
+
+    def create_issue(self, title: str, body: str, label: str) -> int:
+        result = subprocess.run(
+            ["gh", "issue", "create",
+             "--repo", self._repo,
+             "--title", title,
+             "--body", body,
+             "--label", label],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            raise GitHubError(result.stderr.strip())
+        # stdout is the issue URL, e.g. https://github.com/owner/repo/issues/42
+        return int(result.stdout.strip().rstrip("/").split("/")[-1])
+
+    def add_to_project(self, issue_number: int) -> str:
+        """Add an existing issue to the project board. Returns the project item ID."""
+        meta = self._get_meta()
+        # Step 1: get the issue's global node ID
+        id_result = subprocess.run(
+            ["gh", "api", f"repos/{self._repo}/issues/{issue_number}",
+             "--jq", ".node_id"],
+            capture_output=True, text=True,
+        )
+        if id_result.returncode != 0:
+            raise GitHubError(id_result.stderr.strip())
+        content_id = id_result.stdout.strip()
+        # Step 2: add to project
+        data = _gh_json([
+            "api", "graphql",
+            "-f", f"query={_ADD_ITEM_MUTATION}",
+            "-F", f"projectId={meta.project_id}",
+            "-F", f"contentId={content_id}",
+        ])
+        return data["data"]["addProjectV2ItemByContentId"]["item"]["id"]
+
+    def get_item_status(self, item_id: str) -> str | None:
+        """Return the Status field value for a project board item."""
+        data = _gh_json([
+            "api", "graphql",
+            "-f", f"query={_GET_ITEM_STATUS_QUERY}",
+            "-F", f"itemId={item_id}",
+        ])
+        nodes = data["data"]["node"]["fieldValues"]["nodes"]
+        return _get_item_status({"fieldValues": {"nodes": nodes}})
 
 
 def _parse_project_url(url: str) -> tuple[str, int]:

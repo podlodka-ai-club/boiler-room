@@ -52,6 +52,9 @@ def test_main_stops_after_count(mock_client_cls, mock_run):
     ]):
         main()
     assert mock_run.call_count == 2
+    mock_client_cls.assert_called_once_with(
+        "https://github.com/users/x/projects/1", label=None
+    )
 
 
 @patch("boiler_room.main.run_one_task")

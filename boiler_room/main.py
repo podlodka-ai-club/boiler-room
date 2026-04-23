@@ -26,6 +26,9 @@ def main() -> None:
         description="Pick tasks from a GitHub Project and delegate them to a local AI coding agent."
     )
     parser.add_argument(
+        "--version", action="version", version="boiler-room 0.1.0",
+    )
+    parser.add_argument(
         "--agent", required=True, choices=["claude", "copilot"],
         help="Which AI agent to use",
     )
@@ -37,10 +40,14 @@ def main() -> None:
         "--count", type=int, default=None,
         help="Maximum number of tasks to process (default: unlimited)",
     )
+    parser.add_argument(
+        "--label", default=None,
+        help="Only process issues carrying this GitHub label",
+    )
     args = parser.parse_args()
 
     adapter = build_adapter(args.agent)
-    client = GitHubClient(args.project)
+    client = GitHubClient(args.project, label=args.label)
     repo_path = os.getcwd()
 
     processed = 0

@@ -97,7 +97,7 @@ mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
 
 _ADD_ITEM_MUTATION = """
 mutation($projectId: ID!, $contentId: ID!) {
-  addProjectV2ItemByContentId(input: {
+  addProjectV2ItemById(input: {
     projectId: $projectId
     contentId: $contentId
   }) {

@@ -15,6 +15,7 @@ boiler-room = "boiler_room.main:main"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not e2e'"
 markers = [
     "e2e: end-to-end tests against real GitHub (slow, requires gh auth) -- run with: pytest -m e2e",
 ]

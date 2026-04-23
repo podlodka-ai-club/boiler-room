@@ -126,9 +126,13 @@ def test_pipeline_processes_labeled_tasks(e2e_context):
             "--label", ctx.label,
         ],
         timeout=600,
+        capture_output=True,
+        text=True,
     )
     assert result.returncode == 0, (
-        f"boiler-room exited with code {result.returncode}"
+        f"boiler-room exited with code {result.returncode}\n"
+        f"stdout:\n{result.stdout}\n"
+        f"stderr:\n{result.stderr}"
     )
 
     # --- Assert output artefacts ---

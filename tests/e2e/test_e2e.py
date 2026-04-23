@@ -56,7 +56,7 @@ class _E2EItem:
 class _E2EContext:
     label: str
     items: list[_E2EItem] = field(default_factory=list)
-    client: GitHubClient = None
+    client: GitHubClient | None = None
 
 
 @pytest.fixture(scope="module")

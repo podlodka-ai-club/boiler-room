@@ -294,7 +294,7 @@ class GitHubClient:
             "-F", f"projectId={meta.project_id}",
             "-F", f"contentId={content_id}",
         ])
-        return data["data"]["addProjectV2ItemByContentId"]["item"]["id"]
+        return data["data"]["addProjectV2ItemById"]["item"]["id"]
 
     def get_item_status(self, item_id: str) -> str | None:
         """Return the Status field value for a project board item."""

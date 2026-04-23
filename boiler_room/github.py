@@ -71,6 +71,7 @@ query($projectId: ID!) {
               title
               body
               url
+              labels(first: 10) { nodes { name } }
               comments(first: 20) { nodes { body } }
             }
           }
@@ -94,12 +95,52 @@ mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
 }
 """
 
+_ADD_ITEM_MUTATION = """
+mutation($projectId: ID!, $contentId: ID!) {
+  addProjectV2ItemByContentId(input: {
+    projectId: $projectId
+    contentId: $contentId
+  }) {
+    item { id }
+  }
+}
+"""
+
+_REMOVE_ITEM_MUTATION = """
+mutation($projectId: ID!, $itemId: ID!) {
+  deleteProjectV2Item(input: {
+    projectId: $projectId
+    itemId: $itemId
+  }) {
+    deletedItemId
+  }
+}
+"""
+
+_GET_ITEM_STATUS_QUERY = """
+query($itemId: ID!) {
+  node(id: $itemId) {
+    ... on ProjectV2Item {
+      fieldValues(first: 10) {
+        nodes {
+          ... on ProjectV2ItemFieldSingleSelectValue {
+            name
+            field { ... on ProjectV2SingleSelectField { name } }
+          }
+        }
+      }
+    }
+  }
+}
+"""
+
 
 class GitHubClient:
-    def __init__(self, project_url: str):
+    def __init__(self, project_url: str, label: str | None = None):
         self._login, self._project_number = _parse_project_url(project_url)
         self._repo = self._detect_repo()
         self._meta: _ProjectMeta | None = None
+        self._label = label
 
     @staticmethod
     def _detect_repo() -> str:
@@ -155,16 +196,23 @@ class GitHubClient:
         ])
         items = data["data"]["node"]["items"]["nodes"]
         for item in items:
-            if _get_item_status(item) == "Todo" and item.get("content"):
-                content = item["content"]
-                return Task(
-                    id=item["id"],
-                    title=content["title"],
-                    description=content.get("body") or "",
-                    comments=[c["body"] for c in content["comments"]["nodes"]],
-                    issue_number=content["number"],
-                    issue_url=content["url"],
-                )
+            if _get_item_status(item) != "Todo":
+                continue
+            if not item.get("content"):
+                continue
+            content = item["content"]
+            if self._label is not None:
+                labels = [n["name"] for n in content.get("labels", {}).get("nodes", [])]
+                if self._label not in labels:
+                    continue
+            return Task(
+                id=item["id"],
+                title=content["title"],
+                description=content.get("body") or "",
+                comments=[c["body"] for c in content["comments"]["nodes"]],
+                issue_number=content["number"],
+                issue_url=content["url"],
+            )
         return None
 
     def move_to_in_progress(self, item_id: str) -> None:
@@ -212,6 +260,100 @@ class GitHubClient:
         if result.returncode != 0:
             raise GitHubError(result.stderr.strip())
         return result.stdout.strip()
+
+    def create_issue(self, title: str, body: str, label: str) -> int:
+        result = subprocess.run(
+            ["gh", "issue", "create",
+             "--repo", self._repo,
+             "--title", title,
+             "--body", body,
+             "--label", label],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            raise GitHubError(result.stderr.strip())
+        # stdout is the issue URL, e.g. https://github.com/owner/repo/issues/42
+        return int(result.stdout.strip().rstrip("/").split("/")[-1])
+
+    def add_to_project(self, issue_number: int) -> str:
+        """Add an existing issue to the project board. Returns the project item ID."""
+        meta = self._get_meta()
+        # Step 1: get the issue's global node ID
+        id_result = subprocess.run(
+            ["gh", "api", f"repos/{self._repo}/issues/{issue_number}",
+             "--jq", ".node_id"],
+            capture_output=True, text=True,
+        )
+        if id_result.returncode != 0:
+            raise GitHubError(id_result.stderr.strip())
+        content_id = id_result.stdout.strip()
+        # Step 2: add to project
+        data = _gh_json([
+            "api", "graphql",
+            "-f", f"query={_ADD_ITEM_MUTATION}",
+            "-F", f"projectId={meta.project_id}",
+            "-F", f"contentId={content_id}",
+        ])
+        return data["data"]["addProjectV2ItemByContentId"]["item"]["id"]
+
+    def get_item_status(self, item_id: str) -> str | None:
+        """Return the Status field value for a project board item."""
+        data = _gh_json([
+            "api", "graphql",
+            "-f", f"query={_GET_ITEM_STATUS_QUERY}",
+            "-F", f"itemId={item_id}",
+        ])
+        node = data["data"]["node"]
+        if node is None:
+            return None
+        nodes = node["fieldValues"]["nodes"]
+        return _get_item_status({"fieldValues": {"nodes": nodes}})
+
+    def find_pr_for_branch(self, branch: str) -> int | None:
+        """Return the open PR number for the given head branch, or None."""
+        result = subprocess.run(
+            ["gh", "pr", "list",
+             "--repo", self._repo,
+             "--head", branch,
+             "--state", "open",
+             "--json", "number"],
+            capture_output=True, text=True,
+        )
+        if result.returncode != 0:
+            return None
+        try:
+            data = json.loads(result.stdout)
+        except json.JSONDecodeError:
+            return None
+        return data[0]["number"] if data else None
+
+    def close_issue(self, issue_number: int) -> None:
+        _gh_run(["issue", "close", str(issue_number), "--repo", self._repo])
+
+    def close_pr(self, pr_number: int) -> None:
+        _gh_run(["pr", "close", str(pr_number), "--repo", self._repo])
+
+    def delete_branch(self, branch: str) -> None:
+        result = subprocess.run(
+            ["gh", "api", "-X", "DELETE",
+             f"repos/{self._repo}/git/refs/heads/{branch}"],
+            capture_output=True, text=True,
+        )
+        # "Reference does not exist" is acceptable — branch was never pushed
+        if result.returncode != 0 and "Reference does not exist" not in result.stderr:
+            raise GitHubError(result.stderr.strip())
+
+    def remove_from_project(self, item_id: str) -> None:
+        meta = self._get_meta()
+        _gh_run([
+            "api", "graphql",
+            "-f", f"query={_REMOVE_ITEM_MUTATION}",
+            "-F", f"projectId={meta.project_id}",
+            "-F", f"itemId={item_id}",
+        ])
+
+    def delete_label(self, label: str) -> None:
+        _gh_run(["label", "delete", label, "--repo", self._repo, "--yes"])
 
 
 def _parse_project_url(url: str) -> tuple[str, int]:

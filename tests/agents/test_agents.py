@@ -62,14 +62,14 @@ from boiler_room.agents.copilot import CopilotAdapter
 def test_copilot_adapter_command_starts_with_gh():
     adapter = CopilotAdapter()
     cmd = adapter.build_command("do the task", OUTPUT_PATH)
-    assert cmd[0] == "gh"
-    assert "copilot" in cmd
+    assert cmd[0] == "copilot"
 
 
 def test_copilot_adapter_command_includes_prompt():
     adapter = CopilotAdapter()
     cmd = adapter.build_command("do the task", OUTPUT_PATH)
     assert "do the task" in cmd
+    assert "--allow-all-tools" in cmd
 
 
 def test_copilot_adapter_build_prompt_delegates_to_base():

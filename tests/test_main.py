@@ -29,6 +29,28 @@ def test_build_adapter_unknown_exits():
 
 @patch("boiler_room.main.run_one_task")
 @patch("boiler_room.main.GitHubClient")
+def test_main_prints_welcome_message(mock_client_cls, mock_run, capsys):
+    mock_run.return_value = False
+    with patch("sys.argv", [
+        "boiler-room",
+        "--agent", "claude",
+        "--project", "https://github.com/users/x/projects/1",
+    ]):
+        main()
+    captured = capsys.readouterr()
+    assert "Welcome to boiler-room" in captured.out
+
+
+def test_help_does_not_print_welcome(capsys):
+    with pytest.raises(SystemExit):
+        with patch("sys.argv", ["boiler-room", "--help"]):
+            main()
+    captured = capsys.readouterr()
+    assert "Welcome to boiler-room" not in captured.out
+
+
+@patch("boiler_room.main.run_one_task")
+@patch("boiler_room.main.GitHubClient")
 def test_main_loops_until_queue_empty(mock_client_cls, mock_run):
     mock_run.side_effect = [True, True, False]  # 2 tasks then empty
     with patch("sys.argv", [

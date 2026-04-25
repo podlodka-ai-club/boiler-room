@@ -46,6 +46,8 @@ def main() -> None:
     )
     args = parser.parse_args()
 
+    print("Welcome to boiler-room — your AI-powered task runner!")
+
     adapter = build_adapter(args.agent)
     client = GitHubClient(args.project, label=args.label)
     repo_path = os.getcwd()

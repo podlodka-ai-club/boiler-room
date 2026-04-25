@@ -6,7 +6,7 @@
 
 **Architecture:** Four-stage pipeline (fetch → prepare_env → run_agent → finalize) in `pipeline.py`; GitHub interactions via `GitHubClient` using the `gh` CLI; agent adapters implement a common ABC; Pydantic v2 models for typed data exchange throughout.
 
-**Tech Stack:** Python 3.11+, Pydantic v2, pytest, pytest-mock, `gh` CLI, `git` CLI, `claude` CLI or `gh copilot` CLI
+**Tech Stack:** Python 3.11+, Pydantic v2, pytest, pytest-mock, `gh` CLI, `git` CLI, `claude` CLI or `copilot` CLI
 
 ---
 
@@ -952,10 +952,10 @@ from boiler_room.agents.base import AgentAdapter
 
 class CopilotAdapter(AgentAdapter):
     def build_command(self, prompt: str, output_path: str) -> list[str]:
-        # gh copilot is primarily designed for shell command suggestions.
-        # Verify the exact sub-command against your installed gh copilot version
+        # copilot is primarily designed for shell command suggestions.
+        # Verify the exact sub-command against your installed copilot version
         # if the agent does not behave as expected.
-        return ["gh", "copilot", "suggest", "-t", "shell", prompt]
+        return ["copilot", "--prompt", prompt, "--allow-all-tools"]
 ```
 
 - [ ] **Step 4: Run all agent tests**

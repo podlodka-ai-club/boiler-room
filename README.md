@@ -6,7 +6,7 @@ A CLI that picks tasks from a GitHub Project board and delegates them to a local
 
 - Python 3.10+
 - [`gh` CLI](https://cli.github.com/) authenticated with write access to your repo
-- Claude Code CLI (`claude`) or GitHub Copilot CLI (`gh copilot`) installed and authenticated
+- Claude Code CLI (`claude`) or GitHub Copilot CLI (`copilot`) installed and authenticated
 - Run from inside a git repository
 
 ## Installation

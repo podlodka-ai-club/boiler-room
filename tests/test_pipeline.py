@@ -1,7 +1,10 @@
+import json
+import os
 import pytest
+import tempfile
 from unittest.mock import MagicMock, patch
 from boiler_room.models import Task, AgentOutput, RunResult
-from boiler_room.pipeline import run_one_task
+from boiler_room.pipeline import run_one_task, run_agent
 from boiler_room.git import GitError
 
 TASK = Task(
@@ -254,3 +257,23 @@ def test_draft_success_clears_draft_tags(mock_prepare, mock_run_agent, mock_push
 
     client.remove_draft_tag.assert_any_call(DRAFT_TASK, "agent-run")
     client.remove_draft_tag.assert_any_call(DRAFT_TASK, "failed")
+
+
+def test_run_agent_removes_stale_output_before_run():
+    """Stale output.json from a previous run is deleted before launching the agent."""
+    adapter = make_adapter()
+    adapter.build_command.return_value = ["true"]  # no-op command
+
+    with tempfile.TemporaryDirectory() as repo_path:
+        output_dir = os.path.join(repo_path, ".agent-runs", TASK.output_id)
+        os.makedirs(output_dir)
+        stale_output = os.path.join(output_dir, "output.json")
+        with open(stale_output, "w") as f:
+            json.dump({"pr_title": "stale", "pr_description": "old", "success": True}, f)
+
+        result = run_agent(adapter, TASK, "feature/42", repo_path)
+
+        # The stale file must have been removed before the agent ran.
+        # Since the no-op command writes nothing, the file should not exist.
+        assert not os.path.exists(stale_output)
+        assert result.output is None  # no new output was written

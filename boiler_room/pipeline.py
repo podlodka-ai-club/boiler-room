@@ -46,6 +46,9 @@ def run_agent(adapter: AgentAdapter, task: Task, branch: str, repo_path: str) ->
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, "output.json")
 
+    if os.path.exists(output_path):
+        os.remove(output_path)
+
     prompt = adapter.build_prompt(task, output_path)
     command = adapter.build_command(prompt, output_path)
 

@@ -1,6 +1,6 @@
 # boiler-room
 
-A CLI that picks tasks from a GitHub Project board and delegates them to a local AI coding agent. For each task it prepares a clean git branch, runs the agent, commits the result, and opens a pull request.
+A CLI that picks tasks from a GitHub Project board and delegates them to a local AI coding agent. It can process both issue-backed project items and project draft items. For each task it prepares a clean git branch, runs the agent, commits the result, and opens a pull request.
 
 ## Requirements
 
@@ -28,7 +28,7 @@ boiler-room --agent <agent> --project <project-url> [options]
 | `--agent` | yes | AI agent to use: `claude` or `copilot` |
 | `--project` | yes | GitHub Project URL, e.g. `https://github.com/users/dznavak/projects/2` |
 | `--count N` | no | Stop after processing N tasks (default: run until queue empty) |
-| `--label LABEL` | no | Only process issues carrying this GitHub label |
+| `--label LABEL` | no | Only process issue-backed tasks carrying this GitHub label |
 
 ### Examples
 
@@ -52,15 +52,19 @@ boiler-room --agent claude --project https://github.com/users/dznavak/projects/2
 
 ## How It Works
 
-For each task in the `Todo` column of the project board (filtered by `--label` if provided):
+For each task in the `Todo` column of the project board (filtered by `--label` if provided for issue-backed items):
 
-1. Creates a branch `feature/<issue-number>` from `main`
-2. Moves the task to `In Progress` and applies an `agent-run` label
-3. Runs the agent with the task description as a prompt
-4. If the agent succeeds: pushes the branch and opens a pull request, moves task to `Done`
-5. If the agent fails: pushes the branch for inspection, applies a `failed` label, resets task to `Todo`
+1. Creates a branch `feature/<issue-number>` for issues or `feature/draft-<project-item-id>` for drafts, from `main`
+2. Moves the task to `In Progress` and marks it as running
+3. For issue-backed items, applies the `agent-run` label
+4. For draft items, appends `[agent-run]` to the draft body
+5. Runs the agent with the task description as a prompt
+6. If the agent succeeds: pushes the branch and opens a pull request, clears any draft tags, moves task to `Done`
+7. If the agent fails: pushes the branch for inspection and marks the task as failed, then resets task to `Todo`
+8. For issue-backed items, failure uses the `failed` label
+9. For draft items, failure removes `[agent-run]` and appends `[failed]` to the draft body
 
-The agent writes its results to `.agent-runs/<issue-number>/output.json`:
+The agent writes its results to `.agent-runs/<issue-number-or-draft-id>/output.json`:
 
 ```json
 {

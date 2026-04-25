@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from boiler_room.github import GitHubClient, GitHubError, _ProjectMeta, _parse_project_url
+from boiler_room.github import GitHubClient, GitHubError, _ProjectMeta, _parse_project_url, _set_draft_tag
 
 PROJECT_URL = "https://github.com/users/dznavak/projects/2"
 REPO = "dznavak/my-repo"
@@ -40,6 +40,7 @@ ITEMS_RESPONSE = {
                             ]
                         },
                         "content": {
+                            "__typename": "Issue",
                             "number": 42,
                             "title": "Add login",
                             "body": "As a user...",
@@ -104,6 +105,7 @@ def test_fetch_skips_non_todo_items(mock_gh):
                                 ]
                             },
                             "content": {
+                                "__typename": "Issue",
                                 "number": 5,
                                 "title": "Other",
                                 "body": "",
@@ -208,6 +210,7 @@ def test_fetch_returns_task_with_matching_label(mock_gh):
                                 ]
                             },
                             "content": {
+                                "__typename": "Issue",
                                 "number": 42,
                                 "title": "Add login",
                                 "body": "As a user...",
@@ -243,6 +246,7 @@ def test_fetch_skips_task_without_matching_label(mock_gh):
                                 ]
                             },
                             "content": {
+                                "__typename": "Issue",
                                 "number": 42,
                                 "title": "Add login",
                                 "body": "As a user...",
@@ -269,3 +273,75 @@ def test_fetch_skips_task_with_no_labels_key_when_label_filter_set(mock_gh):
     client = make_client(label="my-label")
     task = client.fetch_first_todo_task()
     assert task is None
+
+
+@patch("boiler_room.github._gh_json")
+def test_fetch_returns_draft_task(mock_gh):
+    draft_items = {
+        "data": {
+            "node": {
+                "items": {
+                    "nodes": [
+                        {
+                            "id": "PVTI_draft1",
+                            "fieldValues": {
+                                "nodes": [
+                                    {"name": "Todo", "field": {"name": "Status"}}
+                                ]
+                            },
+                            "content": {
+                                "__typename": "DraftIssue",
+                                "id": "DI_draft1",
+                                "title": "Draft login feature",
+                                "body": "Turn this into a real auth flow",
+                            },
+                        }
+                    ]
+                }
+            }
+        }
+    }
+    mock_gh.side_effect = [META_RESPONSE, draft_items]
+    client = make_client()
+    task = client.fetch_first_todo_task()
+    assert task is not None
+    assert task.title == "Draft login feature"
+    assert task.description == "Turn this into a real auth flow"
+    assert task.issue_number is None
+    assert task.issue_url is None
+    assert task.is_draft is True
+    assert task.draft_issue_id == "DI_draft1"
+    assert task.comments == []
+    assert task.ref == "draft-pvti-draft1"
+
+
+@patch("boiler_room.github._gh_run")
+def test_add_draft_tag_updates_draft_body(mock_gh_run):
+    client = make_client()
+    draft = client.fetch_first_todo_task = MagicMock()
+    from boiler_room.models import Task
+
+    draft = Task(
+        id="PVTI_draft1",
+        title="Draft",
+        description="Body",
+        comments=[],
+        is_draft=True,
+        draft_issue_id="DI_draft1",
+    )
+
+    client.add_draft_tag(draft, "agent-run")
+
+    args = mock_gh_run.call_args.args[0]
+    assert "updateProjectV2DraftIssue" in " ".join(args)
+    assert "draftIssueId=DI_draft1" in args
+    assert "body=Body\n[agent-run]" in args
+    assert draft.description == "Body\n[agent-run]"
+
+
+def test_set_draft_tag_adds_and_removes_markers():
+    body = "Do the thing"
+    tagged = _set_draft_tag(body, "agent-run", present=True)
+    assert tagged == "Do the thing\n[agent-run]"
+    assert _set_draft_tag(tagged, "agent-run", present=True) == tagged
+    assert _set_draft_tag(tagged, "agent-run", present=False) == body

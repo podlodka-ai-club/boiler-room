@@ -13,6 +13,15 @@ TASK = Task(
     issue_url="https://github.com/owner/repo/issues/42",
 )
 
+DRAFT_TASK = Task(
+    id="PVTI_draft1",
+    title="Draft login",
+    description="Prototype auth",
+    comments=[],
+    is_draft=True,
+    draft_issue_id="DI_draft1",
+)
+
 
 def make_client(task=TASK):
     client = MagicMock()
@@ -162,3 +171,86 @@ def test_move_to_todo_called_even_if_label_fails(mock_prepare, mock_run_agent):
     with patch("boiler_room.pipeline.push_branch"):
         run_one_task(client, make_adapter(), "/repo")
     client.move_to_todo.assert_called_once_with(TASK.id)
+
+
+@patch("boiler_room.pipeline.prepare_branch", return_value="feature/draft-pvti-draft1")
+def test_prepare_env_skips_issue_labeling_for_drafts(mock_prepare_branch):
+    client = MagicMock()
+    from boiler_room.pipeline import prepare_env
+
+    branch = prepare_env(client, DRAFT_TASK, "/repo")
+
+    assert branch == "feature/draft-pvti-draft1"
+    client.move_to_in_progress.assert_called_once_with(DRAFT_TASK.id)
+    client.ensure_label.assert_not_called()
+    client.add_label.assert_not_called()
+    client.remove_draft_tag.assert_called_once_with(DRAFT_TASK, "failed")
+    client.add_draft_tag.assert_called_once_with(DRAFT_TASK, "agent-run")
+    mock_prepare_branch.assert_called_once_with("/repo", DRAFT_TASK.branch_suffix)
+
+
+@patch("boiler_room.pipeline.push_branch")
+@patch("boiler_room.pipeline.run_agent")
+@patch("boiler_room.pipeline.prepare_env")
+def test_draft_task_uses_draft_pr_body(mock_prepare, mock_run_agent, mock_push):
+    client = make_client(task=DRAFT_TASK)
+    mock_prepare.return_value = "feature/draft-pvti-draft1"
+    mock_run_agent.return_value = RunResult(
+        task=DRAFT_TASK,
+        exit_code=0,
+        output=AgentOutput(success=True),
+        branch="feature/draft-pvti-draft1",
+        output_dir=".agent-runs/draft-pvti-draft1",
+    )
+
+    run_one_task(client, make_adapter(), "/repo")
+
+    client.create_pr.assert_called_once_with(
+        "feature/draft-pvti-draft1",
+        "feat: Draft login",
+        "Implements project draft: Draft login\n\nAutomated by boiler-room.",
+    )
+
+
+@patch("boiler_room.pipeline.run_agent")
+@patch("boiler_room.pipeline.prepare_env")
+def test_draft_failure_does_not_try_to_label_issue(mock_prepare, mock_run_agent):
+    client = make_client(task=DRAFT_TASK)
+    mock_prepare.return_value = "feature/draft-pvti-draft1"
+    mock_run_agent.return_value = RunResult(
+        task=DRAFT_TASK,
+        exit_code=1,
+        output=None,
+        branch="feature/draft-pvti-draft1",
+        output_dir=".agent-runs/draft-pvti-draft1",
+    )
+
+    with patch("boiler_room.pipeline.push_branch"):
+        result = run_one_task(client, make_adapter(), "/repo")
+
+    assert result is True
+    client.ensure_label.assert_not_called()
+    client.add_label.assert_not_called()
+    client.remove_draft_tag.assert_called_once_with(DRAFT_TASK, "agent-run")
+    client.add_draft_tag.assert_called_once_with(DRAFT_TASK, "failed")
+    client.move_to_todo.assert_called_once_with(DRAFT_TASK.id)
+
+
+@patch("boiler_room.pipeline.push_branch")
+@patch("boiler_room.pipeline.run_agent")
+@patch("boiler_room.pipeline.prepare_env")
+def test_draft_success_clears_draft_tags(mock_prepare, mock_run_agent, mock_push):
+    client = make_client(task=DRAFT_TASK)
+    mock_prepare.return_value = "feature/draft-pvti-draft1"
+    mock_run_agent.return_value = RunResult(
+        task=DRAFT_TASK,
+        exit_code=0,
+        output=AgentOutput(success=True),
+        branch="feature/draft-pvti-draft1",
+        output_dir=".agent-runs/draft-pvti-draft1",
+    )
+
+    run_one_task(client, make_adapter(), "/repo")
+
+    client.remove_draft_tag.assert_any_call(DRAFT_TASK, "agent-run")
+    client.remove_draft_tag.assert_any_call(DRAFT_TASK, "failed")

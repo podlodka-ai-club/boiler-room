@@ -12,8 +12,8 @@ def _run(*args: str, cwd: str) -> str:
     return result.stdout.strip()
 
 
-def prepare_branch(repo_path: str, issue_number: int) -> str:
-    branch = f"feature/{issue_number}"
+def prepare_branch(repo_path: str, branch_suffix: str) -> str:
+    branch = f"feature/{branch_suffix}"
     _run("git", "checkout", "main", cwd=repo_path)
     _run("git", "reset", "--hard", "HEAD", cwd=repo_path)
     _run("git", "clean", "-fd", cwd=repo_path)

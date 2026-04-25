@@ -20,7 +20,7 @@ def run_one_task(client: GitHubClient, adapter: AgentAdapter, repo_path: str) ->
     try:
         branch = prepare_env(client, task, repo_path)
     except Exception as e:
-        logger.error("prepare_env failed for task %s: %s", task.issue_number, e)
+        logger.error("prepare_env failed for task %s: %s", task.ref, e)
         client.move_to_todo(task.id)
         return True
 
@@ -30,15 +30,19 @@ def run_one_task(client: GitHubClient, adapter: AgentAdapter, repo_path: str) ->
 
 
 def prepare_env(client: GitHubClient, task: Task, repo_path: str) -> str:
-    branch = prepare_branch(repo_path, task.issue_number)
+    branch = prepare_branch(repo_path, task.branch_suffix)
     client.move_to_in_progress(task.id)
-    client.ensure_label("agent-run")
-    client.add_label(task.issue_number, "agent-run")
+    if task.issue_number is not None:
+        client.ensure_label("agent-run")
+        client.add_label(task.issue_number, "agent-run")
+    elif task.is_draft:
+        client.remove_draft_tag(task, "failed")
+        client.add_draft_tag(task, "agent-run")
     return branch
 
 
 def run_agent(adapter: AgentAdapter, task: Task, branch: str, repo_path: str) -> RunResult:
-    output_dir = os.path.join(repo_path, ".agent-runs", str(task.issue_number))
+    output_dir = os.path.join(repo_path, ".agent-runs", task.output_id)
     os.makedirs(output_dir, exist_ok=True)
     output_path = os.path.join(output_dir, "output.json")
 
@@ -49,7 +53,7 @@ def run_agent(adapter: AgentAdapter, task: Task, branch: str, repo_path: str) ->
         proc = subprocess.run(command, cwd=repo_path, timeout=3600)
         exit_code = proc.returncode
     except subprocess.TimeoutExpired:
-        logger.error("Agent timed out after 3600s for task %s", task.issue_number)
+        logger.error("Agent timed out after 3600s for task %s", task.ref)
         exit_code = 1
 
     return RunResult(
@@ -85,13 +89,16 @@ def _finalize(client: GitHubClient, result: RunResult, repo_path: str) -> None:
     pr_body = (
         result.output.pr_description
         if result.output and result.output.pr_description
-        else f"Implements #{result.task.issue_number}\n\nAutomated by boiler-room."
+        else _default_pr_body(result.task)
     )
 
     try:
         push_branch(repo_path, result.branch)
         url = client.create_pr(result.branch, pr_title, pr_body)
         logger.info("PR created: %s", url)
+        if result.task.is_draft:
+            client.remove_draft_tag(result.task, "agent-run")
+            client.remove_draft_tag(result.task, "failed")
         client.move_to_done(result.task.id)
     except Exception as e:
         err = str(e)
@@ -110,10 +117,23 @@ def _handle_failure(
         push_branch(repo_path, result.branch, force=True)
     except Exception as e:
         logger.warning("Could not push failure branch %s: %s", result.branch, e)
-    try:
-        client.ensure_label("failed")
-        client.add_label(result.task.issue_number, "failed")
-    except Exception as e:
-        logger.error("Could not apply 'failed' label on issue %s: %s", result.task.issue_number, e)
+    if result.task.issue_number is not None:
+        try:
+            client.ensure_label("failed")
+            client.add_label(result.task.issue_number, "failed")
+        except Exception as e:
+            logger.error("Could not apply 'failed' label on issue %s: %s", result.task.issue_number, e)
+    elif result.task.is_draft:
+        try:
+            client.remove_draft_tag(result.task, "agent-run")
+            client.add_draft_tag(result.task, "failed")
+        except Exception as e:
+            logger.error("Could not tag failed draft %s: %s", result.task.ref, e)
     if reset_to_todo:
         client.move_to_todo(result.task.id)
+
+
+def _default_pr_body(task: Task) -> str:
+    if task.issue_number is not None:
+        return f"Implements #{task.issue_number}\n\nAutomated by boiler-room."
+    return f"Implements project draft: {task.title}\n\nAutomated by boiler-room."

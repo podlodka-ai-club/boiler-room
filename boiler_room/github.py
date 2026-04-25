@@ -66,6 +66,7 @@ query($projectId: ID!) {
             }
           }
           content {
+            __typename
             ... on Issue {
               number
               title
@@ -73,6 +74,11 @@ query($projectId: ID!) {
               url
               labels(first: 10) { nodes { name } }
               comments(first: 20) { nodes { body } }
+            }
+            ... on DraftIssue {
+              id
+              title
+              body
             }
           }
         }
@@ -113,6 +119,18 @@ mutation($projectId: ID!, $itemId: ID!) {
     itemId: $itemId
   }) {
     deletedItemId
+  }
+}
+"""
+
+_UPDATE_DRAFT_ISSUE_MUTATION = """
+mutation($draftIssueId: ID!, $title: String, $body: String) {
+  updateProjectV2DraftIssue(input: {
+    draftIssueId: $draftIssueId
+    title: $title
+    body: $body
+  }) {
+    draftIssue { id }
   }
 }
 """
@@ -198,21 +216,16 @@ class GitHubClient:
         for item in items:
             if _get_item_status(item) != "Todo":
                 continue
-            if not item.get("content"):
-                continue
             content = item["content"]
+            if not content:
+                continue
+            if content.get("__typename") not in {"Issue", "DraftIssue"}:
+                continue
             if self._label is not None:
                 labels = [n["name"] for n in content.get("labels", {}).get("nodes", [])]
                 if self._label not in labels:
                     continue
-            return Task(
-                id=item["id"],
-                title=content["title"],
-                description=content.get("body") or "",
-                comments=[c["body"] for c in content["comments"]["nodes"]],
-                issue_number=content["number"],
-                issue_url=content["url"],
-            )
+            return _build_task(item, content)
         return None
 
     def move_to_in_progress(self, item_id: str) -> None:
@@ -260,6 +273,28 @@ class GitHubClient:
         if result.returncode != 0:
             raise GitHubError(result.stderr.strip())
         return result.stdout.strip()
+
+    def add_draft_tag(self, task: Task, tag: str) -> None:
+        if not task.is_draft:
+            return
+        self._update_draft_body(task, _set_draft_tag(task.description, tag, present=True))
+
+    def remove_draft_tag(self, task: Task, tag: str) -> None:
+        if not task.is_draft:
+            return
+        self._update_draft_body(task, _set_draft_tag(task.description, tag, present=False))
+
+    def _update_draft_body(self, task: Task, body: str) -> None:
+        if task.draft_issue_id is None:
+            raise GitHubError(f"Task {task.id} has no draft issue id")
+        _gh_run([
+            "api", "graphql",
+            "-f", f"query={_UPDATE_DRAFT_ISSUE_MUTATION}",
+            "-F", f"draftIssueId={task.draft_issue_id}",
+            "-f", f"title={task.title}",
+            "-f", f"body={body}",
+        ])
+        task.description = body
 
     def create_issue(self, title: str, body: str, label: str) -> int:
         result = subprocess.run(
@@ -379,3 +414,24 @@ def _get_item_status(item: dict) -> str | None:
         if node.get("field", {}).get("name") == "Status":
             return node.get("name")
     return None
+
+
+def _build_task(item: dict, content: dict) -> Task:
+    return Task(
+        id=item["id"],
+        title=content["title"],
+        description=content.get("body") or "",
+        comments=[c["body"] for c in content.get("comments", {}).get("nodes", [])],
+        issue_number=content.get("number"),
+        issue_url=content.get("url"),
+        is_draft=content.get("__typename") == "DraftIssue",
+        draft_issue_id=content.get("id") if content.get("__typename") == "DraftIssue" else None,
+    )
+
+
+def _set_draft_tag(body: str, tag: str, *, present: bool) -> str:
+    marker = f"[{tag}]"
+    lines = [line for line in body.splitlines() if line.strip() != marker]
+    if present:
+        lines.append(marker)
+    return "\n".join(lines).strip()

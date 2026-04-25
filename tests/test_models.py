@@ -12,7 +12,26 @@ def test_task_fields():
     )
     assert task.id == "PVTI_abc123"
     assert task.issue_number == 42
+    assert task.ref == "42"
     assert len(task.comments) == 2
+
+
+def test_draft_task_fields():
+    task = Task(
+        id="PVTI_DRAFT_123",
+        title="Draft feature",
+        description="Prototype this",
+        comments=[],
+        is_draft=True,
+        draft_issue_id="DI_123",
+    )
+    assert task.issue_number is None
+    assert task.issue_url is None
+    assert task.is_draft is True
+    assert task.draft_issue_id == "DI_123"
+    assert task.ref == "draft-pvti-draft-123"
+    assert task.branch_suffix == "draft-pvti-draft-123"
+    assert task.output_id == "draft-pvti-draft-123"
 
 
 def test_agent_output_defaults():

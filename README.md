@@ -6,7 +6,7 @@ A CLI that picks tasks from a GitHub Project board and delegates them to a local
 
 - Python 3.10+
 - [`gh` CLI](https://cli.github.com/) authenticated with write access to your repo
-- Claude Code CLI (`claude`) or GitHub Copilot CLI (`copilot`) installed and authenticated
+- Claude Code CLI (`claude`), GitHub Copilot CLI (`copilot`), or Codex CLI (`codex`) installed and authenticated
 - Run from inside a git repository
 
 ## Installation
@@ -25,7 +25,7 @@ boiler-room --agent <agent> --project <project-url> [options]
 
 | Argument | Required | Description |
 |----------|----------|-------------|
-| `--agent` | yes | AI agent to use: `claude` or `copilot` |
+| `--agent` | yes | AI agent to use: `claude`, `copilot`, or `codex` |
 | `--project` | yes | GitHub Project URL, e.g. `https://github.com/users/dznavak/projects/2` |
 | `--count N` | no | Stop after processing N tasks (default: run until queue empty) |
 | `--label LABEL` | no | Only process issue-backed tasks carrying this GitHub label |

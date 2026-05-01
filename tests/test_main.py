@@ -3,6 +3,7 @@ from unittest.mock import patch
 from boiler_room.main import build_adapter, main
 from boiler_room.agents.claude import ClaudeAdapter
 from boiler_room.agents.copilot import CopilotAdapter
+from boiler_room.agents.codex import CodexAdapter
 
 
 def test_version_flag(capsys):
@@ -20,6 +21,10 @@ def test_build_adapter_claude():
 
 def test_build_adapter_copilot():
     assert isinstance(build_adapter("copilot"), CopilotAdapter)
+
+
+def test_build_adapter_codex():
+    assert isinstance(build_adapter("codex"), CodexAdapter)
 
 
 def test_build_adapter_unknown_exits():

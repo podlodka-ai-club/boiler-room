@@ -2,6 +2,7 @@ import pytest
 from boiler_room.models import Task
 from boiler_room.agents.base import AgentAdapter, build_prompt
 from boiler_room.agents.claude import ClaudeAdapter
+from boiler_room.agents.codex import CodexAdapter
 
 TASK = Task(
     id="PVTI_abc",
@@ -74,6 +75,27 @@ def test_copilot_adapter_command_includes_prompt():
 
 def test_copilot_adapter_build_prompt_delegates_to_base():
     adapter = CopilotAdapter()
+    prompt = adapter.build_prompt(TASK, OUTPUT_PATH)
+    assert "Add login endpoint" in prompt
+    assert OUTPUT_PATH in prompt
+
+
+def test_codex_adapter_command_starts_with_codex():
+    adapter = CodexAdapter()
+    cmd = adapter.build_command("do the task", OUTPUT_PATH)
+    assert cmd[0] == "codex"
+    assert cmd[1] == "exec"
+
+
+def test_codex_adapter_command_includes_prompt():
+    adapter = CodexAdapter()
+    cmd = adapter.build_command("do the task", OUTPUT_PATH)
+    assert "do the task" in cmd
+    assert "--dangerously-bypass-approvals-and-sandbox" in cmd
+
+
+def test_codex_adapter_build_prompt_delegates_to_base():
+    adapter = CodexAdapter()
     prompt = adapter.build_prompt(TASK, OUTPUT_PATH)
     assert "Add login endpoint" in prompt
     assert OUTPUT_PATH in prompt

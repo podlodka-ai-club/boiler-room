@@ -6,6 +6,7 @@ import sys
 from boiler_room.agents.base import AgentAdapter
 from boiler_room.agents.claude import ClaudeAdapter
 from boiler_room.agents.copilot import CopilotAdapter
+from boiler_room.agents.codex import CodexAdapter
 from boiler_room.github import GitHubClient
 from boiler_room.pipeline import run_one_task
 
@@ -17,7 +18,9 @@ def build_adapter(agent: str) -> AgentAdapter:
         return ClaudeAdapter()
     if agent == "copilot":
         return CopilotAdapter()
-    print(f"Unknown agent: {agent!r}. Choose 'claude' or 'copilot'.", file=sys.stderr)
+    if agent == "codex":
+        return CodexAdapter()
+    print(f"Unknown agent: {agent!r}. Choose 'claude', 'copilot', or 'codex'.", file=sys.stderr)
     sys.exit(1)
 
 
@@ -29,7 +32,7 @@ def main() -> None:
         "--version", action="version", version="boiler-room 0.1.0",
     )
     parser.add_argument(
-        "--agent", required=True, choices=["claude", "copilot"],
+        "--agent", required=True, choices=["claude", "copilot", "codex"],
         help="Which AI agent to use",
     )
     parser.add_argument(

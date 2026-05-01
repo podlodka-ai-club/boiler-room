@@ -1,4 +1,5 @@
 .agent-runs/
+.worktrees/
 __pycache__/
 *.pyc
 *.egg-info/

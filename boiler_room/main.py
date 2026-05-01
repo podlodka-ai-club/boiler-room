@@ -8,7 +8,7 @@ from boiler_room.agents.claude import ClaudeAdapter
 from boiler_room.agents.copilot import CopilotAdapter
 from boiler_room.agents.codex import CodexAdapter
 from boiler_room.github import GitHubClient
-from boiler_room.pipeline import run_one_task
+from boiler_room.pipeline import run_tasks
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
@@ -44,6 +44,10 @@ def main() -> None:
         help="Maximum number of tasks to process (default: unlimited)",
     )
     parser.add_argument(
+        "--parallel", type=int, default=2,
+        help="Maximum number of tasks to work on at once (default: 2)",
+    )
+    parser.add_argument(
         "--label", default=None,
         help="Only process issues carrying this GitHub label",
     )
@@ -55,10 +59,10 @@ def main() -> None:
     client = GitHubClient(args.project, label=args.label)
     repo_path = os.getcwd()
 
-    processed = 0
-    while args.count is None or processed < args.count:
-        found = run_one_task(client, adapter, repo_path)
-        if not found:
-            logging.info("Queue empty. Done.")
-            break
-        processed += 1
+    run_tasks(
+        client,
+        adapter,
+        repo_path,
+        count=args.count,
+        parallelism=args.parallel,
+    )

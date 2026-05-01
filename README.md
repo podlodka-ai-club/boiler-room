@@ -1,6 +1,6 @@
 # boiler-room
 
-A CLI that picks tasks from a GitHub Project board and delegates them to a local AI coding agent. It can process both issue-backed project items and project draft items. For each task it prepares a clean git branch, runs the agent, commits the result, and opens a pull request.
+A CLI that picks tasks from a GitHub Project board and delegates them to a local AI coding agent. It can process both issue-backed project items and project draft items. For each task it prepares an isolated git worktree, runs the agent, commits the result, and opens a pull request.
 
 ## Requirements
 
@@ -28,6 +28,7 @@ boiler-room --agent <agent> --project <project-url> [options]
 | `--agent` | yes | AI agent to use: `claude`, `copilot`, or `codex` |
 | `--project` | yes | GitHub Project URL, e.g. `https://github.com/users/dznavak/projects/2` |
 | `--count N` | no | Stop after processing N tasks (default: run until queue empty) |
+| `--parallel N` | no | Maximum number of tasks to work on at once (default: `2`) |
 | `--label LABEL` | no | Only process issue-backed tasks carrying this GitHub label |
 
 ### Examples
@@ -44,6 +45,12 @@ Process at most 3 tasks:
 boiler-room --agent claude --project https://github.com/users/dznavak/projects/2 --count 3
 ```
 
+Process up to 2 tasks concurrently:
+
+```bash
+boiler-room --agent claude --project https://github.com/users/dznavak/projects/2 --parallel 2
+```
+
 Process only tasks labeled `sprint-42`:
 
 ```bash
@@ -54,15 +61,18 @@ boiler-room --agent claude --project https://github.com/users/dznavak/projects/2
 
 For each task in the `Todo` column of the project board (filtered by `--label` if provided for issue-backed items):
 
-1. Creates a branch `feature/<issue-number>` for issues or `feature/draft-<project-item-id>` for drafts, from `main`
-2. Moves the task to `In Progress` and marks it as running
-3. For issue-backed items, applies the `agent-run` label
-4. For draft items, appends `[agent-run]` to the draft body
-5. Runs the agent with the task description as a prompt
-6. If the agent succeeds: pushes the branch and opens a pull request, clears any draft tags, moves task to `Done`
-7. If the agent fails: pushes the branch for inspection and marks the task as failed, then resets task to `Todo`
-8. For issue-backed items, failure uses the `failed` label
-9. For draft items, failure removes `[agent-run]` and appends `[failed]` to the draft body
+1. Claims up to `--parallel` Todo items at a time
+2. Creates a branch `feature/<issue-number>` for issues or `feature/draft-<project-item-id>` for drafts
+3. Creates a temporary git worktree for each claimed task
+4. Moves the task to `In Progress` and marks it as running
+5. For issue-backed items, applies the `agent-run` label
+6. For draft items, appends `[agent-run]` to the draft body
+7. Runs the agent with the task description as a prompt inside that task's worktree
+8. If the agent succeeds: pushes the branch and opens a pull request, clears any draft tags, moves task to `Done`
+9. If the agent fails: pushes the branch for inspection and marks the task as failed, then resets task to `Todo`
+10. For issue-backed items, failure uses the `failed` label
+11. For draft items, failure removes `[agent-run]` and appends `[failed]` to the draft body
+12. Removes the temporary worktree after the task finishes, while keeping `.agent-runs/.../output.json` in the main repo
 
 The agent writes its results to `.agent-runs/<issue-number-or-draft-id>/output.json`:
 

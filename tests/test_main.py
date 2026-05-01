@@ -1,5 +1,5 @@
 import pytest
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 from boiler_room.main import build_adapter, main
 from boiler_room.agents.claude import ClaudeAdapter
 from boiler_room.agents.copilot import CopilotAdapter
@@ -32,10 +32,9 @@ def test_build_adapter_unknown_exits():
         build_adapter("unknown")
 
 
-@patch("boiler_room.main.run_one_task")
+@patch("boiler_room.main.run_tasks")
 @patch("boiler_room.main.GitHubClient")
-def test_main_prints_welcome_message(mock_client_cls, mock_run, capsys):
-    mock_run.return_value = False
+def test_main_prints_welcome_message(mock_client_cls, mock_run_tasks, capsys):
     with patch("sys.argv", [
         "boiler-room",
         "--agent", "claude",
@@ -54,23 +53,27 @@ def test_help_does_not_print_welcome(capsys):
     assert "Welcome to boiler-room" not in captured.out
 
 
-@patch("boiler_room.main.run_one_task")
+@patch("boiler_room.main.run_tasks")
 @patch("boiler_room.main.GitHubClient")
-def test_main_loops_until_queue_empty(mock_client_cls, mock_run):
-    mock_run.side_effect = [True, True, False]  # 2 tasks then empty
+def test_main_uses_parallel_runner(mock_client_cls, mock_run_tasks):
     with patch("sys.argv", [
         "boiler-room",
         "--agent", "claude",
         "--project", "https://github.com/users/x/projects/1",
     ]):
         main()
-    assert mock_run.call_count == 3
+    mock_run_tasks.assert_called_once_with(
+        mock_client_cls.return_value,
+        ANY,
+        ANY,
+        count=None,
+        parallelism=2,
+    )
 
 
-@patch("boiler_room.main.run_one_task")
+@patch("boiler_room.main.run_tasks")
 @patch("boiler_room.main.GitHubClient")
-def test_main_stops_after_count(mock_client_cls, mock_run):
-    mock_run.return_value = True  # always finds a task
+def test_main_passes_count_to_parallel_runner(mock_client_cls, mock_run_tasks):
     with patch("sys.argv", [
         "boiler-room",
         "--agent", "claude",
@@ -78,16 +81,21 @@ def test_main_stops_after_count(mock_client_cls, mock_run):
         "--count", "2",
     ]):
         main()
-    assert mock_run.call_count == 2
+    mock_run_tasks.assert_called_once_with(
+        mock_client_cls.return_value,
+        ANY,
+        ANY,
+        count=2,
+        parallelism=2,
+    )
     mock_client_cls.assert_called_once_with(
         "https://github.com/users/x/projects/1", label=None
     )
 
 
-@patch("boiler_room.main.run_one_task")
+@patch("boiler_room.main.run_tasks")
 @patch("boiler_room.main.GitHubClient")
-def test_main_passes_label_to_client(mock_client_cls, mock_run):
-    mock_run.return_value = False
+def test_main_passes_label_to_client(mock_client_cls, mock_run_tasks):
     with patch("sys.argv", [
         "boiler-room",
         "--agent", "claude",
@@ -97,4 +105,23 @@ def test_main_passes_label_to_client(mock_client_cls, mock_run):
         main()
     mock_client_cls.assert_called_once_with(
         "https://github.com/users/x/projects/1", label="e2e-test-abc"
+    )
+
+
+@patch("boiler_room.main.run_tasks")
+@patch("boiler_room.main.GitHubClient")
+def test_main_passes_parallel_to_runner(mock_client_cls, mock_run_tasks):
+    with patch("sys.argv", [
+        "boiler-room",
+        "--agent", "claude",
+        "--project", "https://github.com/users/x/projects/1",
+        "--parallel", "1",
+    ]):
+        main()
+    mock_run_tasks.assert_called_once_with(
+        mock_client_cls.return_value,
+        ANY,
+        ANY,
+        count=None,
+        parallelism=1,
     )
